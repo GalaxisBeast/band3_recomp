@@ -1,6 +1,85 @@
 # band3 recompiled
-Early recompilation of Rock Band 3 (title update 5). Playable, but just barely. Requires rexglue-sdk to compile.
 
-This README will be cleaned up when this project is in a more mature state
+Early recompilation of Rock Band 3 (title update 5). Playable, but just barely.
 
+## Prerequisites
 
+Before building, ensure you have the following:
+
+- [rexglue-sdk](https://github.com/rexglue/rexglue-sdk/releases)
+- A copy of Rock Band 3 (Xbox 360) with Title Update 5 (TU5) XEX
+
+## Building
+
+### Windows
+
+Prerequisites
+   - [rexglue-sdk](https://github.com/rexglue/rexglue-sdk/releases)
+   - Visual Studio with "Desktop development with C++" installed
+   - cmake
+   - ninja
+   - clang
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/ihatecompvir/band3_recomp
+   cd band3_recomp
+   ```
+
+2. Set up assets:
+   - Create an `assets` folder in the root of the repository
+   - Place the Rock Band 3 TU5 `default.xex` inside `assets`
+   - Place the Xbox `gen` folder inside `assets`
+     - The `gen` folder must contain both `main` and `patch` ARK files
+
+3. Build:
+
+   From the root of the repository in Command Prompt, run:
+
+   ```
+   rexglue codegen band3_config.toml
+   cmake --preset win-amd64-release
+   cmake --build --preset win-amd64-release
+   ```
+
+### Linux
+
+Prerequisites
+   - build-essential
+   - git
+   - cmake
+   - ninja
+   - clang
+   - [rexglue-sdk](https://github.com/rexglue/rexglue-sdk/releases) (must be available in PATH or environment variables)
+
+1. Install required packages:
+   ```
+   sudo apt install build-essential git cmake ninja-build clang
+   ```
+
+2. Clone the repository:
+   ```
+   git clone https://github.com/ihatecompvir/band3_recomp
+   cd band3_recomp
+   ```
+
+3. Set up assets:
+   - Create an `assets` folder in the root of the repository
+   - Place the Rock Band 3 TU5 `default.xex` inside `assets`
+   - Place the Xbox `gen` folder inside `assets`
+     - The `gen` folder must contain both `main` and `patch` ARK files
+
+4. Build:
+
+   From the root of the repository, run:
+
+   ```
+   rexglue codegen band3_config.toml
+   cmake --preset=linux-amd64-release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+   ninja -C out/build/linux-amd64-release
+   ```
+
+## Notes
+
+- This project is in an early state and may not build or run correctly in all applications.
+- Documentation will be improved as development progresses.

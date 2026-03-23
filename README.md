@@ -50,7 +50,7 @@ Prerequisites
    - cmake
    - ninja
    - clang
-   - [rexglue-sdk](https://github.com/rexglue/rexglue-sdk/releases) (must be available in PATH or environment variables)
+   - [rexglue-sdk](https://github.com/rexglue/rexglue-sdk/releases)
 
 1. Install required packages:
    ```

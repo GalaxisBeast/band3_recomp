@@ -1,6 +1,5 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/logging.h>
 #include <filesystem>
 #include <system_error>
@@ -26,7 +25,7 @@ static std::filesystem::path SanitizePath(const char* cc) {
     return result;
 }
 
-extern "C" PPC_FUNC(NewFile) {
+extern "C" REX_FUNC(NewFile) {
     uint32_t cc_addr = ctx.r3.u32;
     uint32_t flags = ctx.r4.u32;
 

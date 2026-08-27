@@ -1,5 +1,3 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
 #include <rex/system/kernel_state.h>
 #include <rex/logging.h>
 #include <cstring>
@@ -30,7 +28,7 @@ static void EnsureCryptoBuffers(uint8_t* base) {
 }
 
 // XeKeysSetKey(uint32_t key_index, void* key_buffer, uint32_t key_size)
-extern "C" PPC_FUNC(XeKeysSetKey)
+extern "C" REX_FUNC(XeKeysSetKey)
 {
     EnsureCryptoBuffers(base);
 
@@ -52,7 +50,7 @@ extern "C" PPC_FUNC(XeKeysSetKey)
 extern "C" __attribute__((alias("XeKeysSetKey"))) void __imp__XeKeysSetKey(PPCContext& ctx, uint8_t* base);
 
 // XeKeysAesCbc(uint32_t key_index, void* inp, uint32_t inp_size, void* out, void* feed, uint32_t encrypt)
-extern "C" PPC_FUNC(XeKeysAesCbc)
+extern "C" REX_FUNC(XeKeysAesCbc)
 {
     EnsureCryptoBuffers(base);
 

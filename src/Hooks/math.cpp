@@ -1,161 +1,123 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
 #include <cmath>
+#include <rex/hook.h>
 
 // native replacements for recompiled PPC math functions
-
-// helpers for guest memory float access
-static inline float lf(uint8_t* base, uint32_t addr) {
-	PPCRegister t{};
-	t.u32 = PPC_LOAD_U32(addr);
-	return t.f32;
-}
-
-static inline void sf(uint8_t* base, uint32_t addr, float val) {
-	PPCRegister t{};
-	t.f32 = val;
-	PPC_STORE_U32(addr, t.u32);
-}
-
-static void normalize_vec3(uint8_t* base, uint32_t src, uint32_t dst) {
-	float x = lf(base, src);
-	float y = lf(base, src + 0x04);
-	float z = lf(base, src + 0x08);
-
-	if (x == 0.0f && y == 0.0f && z == 0.0f) {
-		sf(base, dst, 0.0f);
-		sf(base, dst + 0x04, 0.0f);
-		sf(base, dst + 0x08, 0.0f);
-		return;
-	}
-
-	float inv = 1.0f / std::sqrt(x * x + y * y + z * z);
-	sf(base, dst, x * inv);
-	sf(base, dst + 0x04, y * inv);
-	sf(base, dst + 0x08, z * inv);
-}
 
 // Matrix/vector math stuff
 // TODO: add proper matrix/vector3 structures to make this look cleaner
 
 // Normalize(Vector3* src, Vector3* dst)
-extern "C" PPC_FUNC(Normalize_Vector3) {
-	normalize_vec3(base, ctx.r3.u32, ctx.r4.u32);
+static void Normalize_Vector3(mapped_f32 src, mapped_f32 dst) {
+	f32 x = src[0];
+	f32 y = src[1];
+	f32 z = src[2];
+
+	if (x == 0.0f && y == 0.0f && z == 0.0f) {
+		dst[0] = 0.0f;
+		dst[1] = 0.0f;
+		dst[2] = 0.0f;
+		return;
+	}
+
+	f32 inv = 1.0f / std::sqrt(x * x + y * y + z * z);
+	dst[0] = x * inv;
+	dst[1] = y * inv;
+	dst[2] = z * inv;
 }
 
-// Normalize(Matrix3* src, Matrix3* dst)
-extern "C" PPC_FUNC(Normalize_Matrix3) {
-	uint32_t src = ctx.r3.u32;
-	uint32_t dst = ctx.r4.u32;
+REX_HOOK(_Normalize_Vector3, Normalize_Vector3)
 
-	normalize_vec3(base, src + 0x10, dst + 0x10);
+static void Normalize_Matrix3(mapped_f32 src, mapped_f32 dst) {
+	Normalize_Vector3(src + 4, dst + 4);
 
-	float r1x = lf(base, dst + 0x10);
-	float r1y = lf(base, dst + 0x14);
-	float r1z = lf(base, dst + 0x18);
-	float r2x = lf(base, src + 0x20);
-	float r2y = lf(base, src + 0x24);
-	float r2z = lf(base, src + 0x28);
+	f32 r1x = dst[4];
+	f32 r1y = dst[5];
+	f32 r1z = dst[6];
+	f32 r2x = src[8];
+	f32 r2y = src[9];
+	f32 r2z = src[10];
 
-	sf(base, dst + 0x00, r1y * r2z - r1z * r2y);
-	sf(base, dst + 0x04, r1z * r2x - r1x * r2z);
-	sf(base, dst + 0x08, r1x * r2y - r1y * r2x);
-	normalize_vec3(base, dst, dst);
+	dst[0] = r1y * r2z - r1z * r2y;
+	dst[1] = r1z * r2x - r1x * r2z;
+	dst[2] = r1x * r2y - r1y * r2x;
+	Normalize_Vector3(dst, dst);
 
-	float r0x = lf(base, dst);
-	float r0y = lf(base, dst + 0x04);
-	float r0z = lf(base, dst + 0x08);
+	f32 r0x = dst[0];
+	f32 r0y = dst[1];
+	f32 r0z = dst[2];
 
-	sf(base, dst + 0x20, r0y * r1z - r0z * r1y);
-	sf(base, dst + 0x24, r0z * r1x - r0x * r1z);
-	sf(base, dst + 0x28, r0x * r1y - r0y * r1x);
-	normalize_vec3(base, dst + 0x20, dst + 0x20);
+	dst[8] = r0y * r1z - r0z * r1y;
+	dst[9] = r0z * r1x - r0x * r1z;
+	dst[10] = r0x * r1y - r0y * r1x;
+	Normalize_Vector3(dst + 8, dst + 8);
 }
+
+REX_HOOK(_Normalize_Matrix3, Normalize_Matrix3)
 
 // Multiply(Matrix3* A, Matrix3* B, Matrix3* C)
-extern "C" PPC_FUNC(Multiply_Matrix3) {
-	uint32_t a_addr = ctx.r3.u32;
-	uint32_t b_addr = ctx.r4.u32;
-	uint32_t c_addr = ctx.r5.u32;
-
-	float a[3][3], b[3][3];
+static void Multiply_Matrix3(mapped_f32 src_a, mapped_f32 src_b, mapped_f32 dst) {
+	be_f32 a[3][3], b[3][3];
 	for (int i = 0; i < 3; i++) {
-		uint32_t ar = a_addr + i * 0x10;
-		uint32_t br = b_addr + i * 0x10;
-		a[i][0] = lf(base, ar);       a[i][1] = lf(base, ar + 4);  a[i][2] = lf(base, ar + 8);
-		b[i][0] = lf(base, br);       b[i][1] = lf(base, br + 4);  b[i][2] = lf(base, br + 8);
+		a[i][0] = src_a[i*4];	a[i][1] = src_a[i*4 + 1];	a[i][2] = src_a[i*4 + 2];
+		b[i][0] = src_b[i*4];	b[i][1] = src_b[i*4 + 1];	b[i][2] = src_b[i*4 + 2];
 	}
-
 	for (int i = 0; i < 3; i++) {
-		uint32_t cr = c_addr + i * 0x10;
-		sf(base, cr,     a[i][0]*b[0][0] + a[i][1]*b[1][0] + a[i][2]*b[2][0]);
-		sf(base, cr + 4, a[i][0]*b[0][1] + a[i][1]*b[1][1] + a[i][2]*b[2][1]);
-		sf(base, cr + 8, a[i][0]*b[0][2] + a[i][1]*b[1][2] + a[i][2]*b[2][2]);
+		f32 c1 = a[i][0]*b[0][0] + a[i][1]*b[1][0] + a[i][2]*b[2][0];
+		f32 c2 = a[i][0]*b[0][1] + a[i][1]*b[1][1] + a[i][2]*b[2][1];
+		f32 c3 = a[i][0]*b[0][2] + a[i][1]*b[1][2] + a[i][2]*b[2][2];
+
+		dst[i*4] = c1;
+		dst[i*4 + 1] = c2;
+		dst[i*4 + 2] = c3;
 	}
 }
 
-// Interp(Vector3* a, Vector3* b, float t, Vector3* dst)
-extern "C" PPC_FUNC(Interp_Vector3) {
-	uint32_t a = ctx.r3.u32;
-	uint32_t b = ctx.r4.u32;
-	float t = float(ctx.f1.f64);
-	uint32_t dst = ctx.r6.u32;
+REX_HOOK(_Multiply_Matrix3, Multiply_Matrix3)
 
+
+static void Interp_Vector3(mapped_f32 a, mapped_f32 b, f64 t, mapped_f32 dst) {
 	if (t == 0.0f) {
-		PPC_STORE_U32(dst,      PPC_LOAD_U32(a));
-		PPC_STORE_U32(dst + 4,  PPC_LOAD_U32(a + 4));
-		PPC_STORE_U32(dst + 8,  PPC_LOAD_U32(a + 8));
-		PPC_STORE_U32(dst + 12, PPC_LOAD_U32(a + 12));
+		dst[0] = a[0];
+		dst[1] = a[1];
+		dst[2] = a[2];
+		dst[3] = a[3];
 		return;
 	}
 
 	if (t == 1.0f) {
-		PPC_STORE_U32(dst,      PPC_LOAD_U32(b));
-		PPC_STORE_U32(dst + 4,  PPC_LOAD_U32(b + 4));
-		PPC_STORE_U32(dst + 8,  PPC_LOAD_U32(b + 8));
-		PPC_STORE_U32(dst + 12, PPC_LOAD_U32(b + 12));
+		dst[0] = b[0];
+		dst[1] = b[1];
+		dst[2] = b[2];
+		dst[3] = b[3];
 		return;
 	}
 
-	float ax = lf(base, a), ay = lf(base, a + 4), az = lf(base, a + 8);
-	float bx = lf(base, b), by = lf(base, b + 4), bz = lf(base, b + 8);
-	sf(base, dst,     (bx - ax) * t + ax);
-	sf(base, dst + 4, (by - ay) * t + ay);
-	sf(base, dst + 8, (bz - az) * t + az);
+	f64 ax = a[0], ay = a[1], az = a[2];
+	f64 bx = b[0], by = b[1], bz = b[2];
+	dst[0] = (bx - ax) * t + ax;
+	dst[1] = (by - ay) * t + ay;
+	dst[2] = (bz - az) * t + az;
 }
 
-extern "C" PPC_FUNC(_cos) {
-    ctx.f1.f64 = std::cos(ctx.f1.f64);
+// Using REX_HOOK_RAW because REX_HOOK maps the registers wrong in this case.
+// I think it tries to use f3 instead of f1.
+REX_HOOK_RAW(_Interp_Vector3) {
+	mapped_f32 a = mapped_f32(rex::memory::GuestPtr<be_f32*>(base, ctx.r3.u32), ctx.r3.u32);
+	mapped_f32 b = mapped_f32(rex::memory::GuestPtr<be_f32*>(base, ctx.r4.u32), ctx.r4.u32);
+	f64 t = f64(ctx.f1.f64);
+	mapped_f32 dst = mapped_f32(rex::memory::GuestPtr<be_f32*>(base, ctx.r6.u32), ctx.r6.u32);
+
+	Interp_Vector3(a, b, t, dst);
 }
 
-extern "C" PPC_FUNC(_tan) {
-    ctx.f1.f64 = std::tan(ctx.f1.f64);
-}
+REX_HOOK(_acos, static_cast<f64(*)(f64)>(std::acos));
+REX_HOOK(_asin, static_cast<f64(*)(f64)>(std::asin));
+REX_HOOK(_atan, static_cast<f64(*)(f64)>(std::atan));
+REX_HOOK(_atan2, static_cast<f64(*)(f64,f64)>(std::atan2));
+REX_HOOK(_cos, static_cast<f64(*)(f64)>(std::cos));
+REX_HOOK(_floor, static_cast<f64(*)(f64)>(std::floor));
+REX_HOOK(_fmod, static_cast<f64(*)(f64,f64)>(std::fmod));
+REX_HOOK(_pow, static_cast<f64(*)(f64,f64)>(std::pow));
+REX_HOOK(_sin, static_cast<f64(*)(f64)>(std::sin));
+REX_HOOK(_tan, static_cast<f64(*)(f64)>(std::tan));
 
-extern "C" PPC_FUNC(_floor) {
-    ctx.f1.f64 = std::floor(ctx.f1.f64);
-}
-
-extern "C" PPC_FUNC(_fmod) {
-    ctx.f1.f64 = std::fmod(ctx.f1.f64, ctx.f2.f64);
-}
-
-extern "C" PPC_FUNC(_asin) {
-    ctx.f1.f64 = std::asin(ctx.f1.f64);
-}
-
-extern "C" PPC_FUNC(_acos) {
-    ctx.f1.f64 = std::acos(ctx.f1.f64);
-}
-
-extern "C" PPC_FUNC(_atan) {
-    ctx.f1.f64 = std::atan(ctx.f1.f64);
-}
-
-extern "C" PPC_FUNC(_pow) {
-    ctx.f1.f64 = std::pow(ctx.f1.f64, ctx.f2.f64);
-}
-
-extern "C" PPC_FUNC(_atan2) {
-    ctx.f1.f64 = std::atan2(ctx.f1.f64, ctx.f2.f64);
-}

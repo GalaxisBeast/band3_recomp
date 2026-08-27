@@ -1,7 +1,5 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/memory.h>
 #include <cstring>
+#include "generated/band3_init.h"
 #include "src/Game/DataNode.h"
 #include "src/Game/DataArray.h"
 
@@ -20,10 +18,10 @@ extern "C" void DataNode__Evaluate(PPCContext& ctx, uint8_t* base);
 
 // helpers to cast guest pointers to structures
 static inline const band3::DataNode* node(uint8_t* base, uint32_t addr) {
-    return reinterpret_cast<const band3::DataNode*>(PPC_RAW_ADDR(addr));
+    return reinterpret_cast<const band3::DataNode*>(REX_RAW_ADDR(addr));
 }
 static inline const band3::DataArray* array(uint8_t* base, uint32_t addr) {
-    return reinterpret_cast<const band3::DataArray*>(PPC_RAW_ADDR(addr));
+    return reinterpret_cast<const band3::DataArray*>(REX_RAW_ADDR(addr));
 }
 
 // calls evaluate, returns the pointer
@@ -42,36 +40,36 @@ static inline uint32_t literal_str(uint8_t* base, uint32_t addr) {
 // --- DataNode functions ---
 
 // DataNode* DataNode::Var() const
-extern "C" PPC_FUNC(DataNode__Var) {
+extern "C" REX_FUNC(DataNode__Var) {
     ctx.r3.u64 = node(base, ctx.r3.u32)->value;
 }
 
 // int DataNode::_value() const
-extern "C" PPC_FUNC(DataNode___value) {
+extern "C" REX_FUNC(DataNode___value) {
     ctx.r3.u64 = node(base, evaluate(ctx, base))->value;
 }
 
 // const char* DataNode::LiteralStr(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__LiteralStr) {
+extern "C" REX_FUNC(DataNode__LiteralStr) {
     ctx.r3.u64 = literal_str(base, ctx.r3.u32);
 }
 
 // Symbol DataNode::Sym(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__Sym) {
+extern "C" REX_FUNC(DataNode__Sym) {
     uint32_t out = ctx.r3.u32;
     ctx.r3.u64 = ctx.r4.u64;
     uint32_t val = node(base, evaluate(ctx, base))->value;
-    PPC_STORE_U32(out, val);
+    REX_STORE_U32(out, val);
     ctx.r3.u64 = out;
 }
 
 // const char* DataNode::Str(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__Str) {
+extern "C" REX_FUNC(DataNode__Str) {
     ctx.r3.u64 = literal_str(base, evaluate(ctx, base));
 }
 
 // float DataNode::Float(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__Float) {
+extern "C" REX_FUNC(DataNode__Float) {
     auto* n = node(base, evaluate(ctx, base));
     if (n->type == band3::kDataInt) {
         ctx.f1.f64 = static_cast<double>(static_cast<int32_t>(n->value));
@@ -84,12 +82,12 @@ extern "C" PPC_FUNC(DataNode__Float) {
 }
 
 // Symbol DataNode::ForceSym(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__ForceSym) {
+extern "C" REX_FUNC(DataNode__ForceSym) {
     uint32_t out = ctx.r3.u32;
     ctx.r3.u64 = ctx.r4.u64;
     auto* n = node(base, evaluate(ctx, base));
     if (n->type == band3::kDataSymbol) {
-        PPC_STORE_U32(out, n->value);
+        REX_STORE_U32(out, n->value);
         ctx.r3.u64 = out;
     } else {
         ctx.r3.u64 = out;
@@ -99,7 +97,7 @@ extern "C" PPC_FUNC(DataNode__ForceSym) {
 }
 
 // const DataNode& DataNode::Evaluate() const
-extern "C" PPC_FUNC(DataNode__Evaluate) {
+extern "C" REX_FUNC(DataNode__Evaluate) {
     auto* n = node(base, ctx.r3.u32);
     if (n->type == band3::kDataVar) {
         ctx.r3.u64 = n->value;
@@ -109,9 +107,9 @@ extern "C" PPC_FUNC(DataNode__Evaluate) {
 }
 
 // const DataNode& UseQueue(const DataNode& node)
-extern "C" PPC_FUNC(DataNode__UseQueue) {
+extern "C" REX_FUNC(DataNode__UseQueue) {
     uint32_t src = ctx.r3.u32;
-    uint32_t idx = PPC_LOAD_U32(gEvalIndex_addr);
+    uint32_t idx = REX_LOAD_U32(gEvalIndex_addr);
     uint32_t dst = gEvalNode_addr + idx * 8;
 
     auto* old_n = node(base, dst);
@@ -122,19 +120,19 @@ extern "C" PPC_FUNC(DataNode__UseQueue) {
         return;
     }
 
-    PPC_STORE_U32(dst + 0, new_n->value);
-    PPC_STORE_U32(dst + 4, new_n->type);
-    PPC_STORE_U32(gEvalIndex_addr, (idx + 1) & 7);
+    REX_STORE_U32(dst + 0, new_n->value);
+    REX_STORE_U32(dst + 4, new_n->type);
+    REX_STORE_U32(gEvalIndex_addr, (idx + 1) & 7);
     ctx.r3.u64 = dst;
 }
 
 // bool DataNode::NotNull() const
-extern "C" PPC_FUNC(DataNode__NotNull) {
+extern "C" REX_FUNC(DataNode__NotNull) {
     uint32_t addr = evaluate(ctx, base);
     auto* n = node(base, addr);
 
     if (n->type == band3::kDataSymbol) {
-        ctx.r3.u64 = (*PPC_RAW_ADDR(n->value) != 0) ? 1 : 0;
+        ctx.r3.u64 = (*REX_RAW_ADDR(n->value) != 0) ? 1 : 0;
     } else if (n->type == band3::kDataString) {
         auto* arr = array(base, n->value);
         ctx.r3.u64 = ((short)arr->mSize < -1) ? 1 : 0;
@@ -147,7 +145,7 @@ extern "C" PPC_FUNC(DataNode__NotNull) {
 }
 
 // Object* DataNode::GetObj(const DataArray*) const
-extern "C" PPC_FUNC(DataNode__GetObj) {
+extern "C" REX_FUNC(DataNode__GetObj) {
     uint32_t addr = evaluate(ctx, base);
     auto* n = node(base, addr);
 
@@ -155,8 +153,8 @@ extern "C" PPC_FUNC(DataNode__GetObj) {
         ctx.r3.u64 = n->value;
     } else {
         uint32_t str = literal_str(base, addr);
-        if (*PPC_RAW_ADDR(str) != '\0') {
-            ctx.r3.u64 = PPC_LOAD_U32(gDataDir_addr);
+        if (*REX_RAW_ADDR(str) != '\0') {
+            ctx.r3.u64 = REX_LOAD_U32(gDataDir_addr);
             ctx.r4.u64 = str;
             ctx.r5.u64 = 1;
             ObjectDir__FindObject(ctx, base);

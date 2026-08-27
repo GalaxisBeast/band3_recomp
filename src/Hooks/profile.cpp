@@ -1,13 +1,11 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/memory.h>
+#include <rex/hook.h>
 #include <rex/logging.h>
 #include <cstring>
 #include "src/config.h"
 
 extern "C" void __imp__PlatformMgr__GetName(PPCContext& ctx, uint8_t* base);
 
-extern "C" PPC_FUNC(PlatformMgr__GetName)
+extern "C" REX_FUNC(PlatformMgr__GetName)
 {
     __imp__PlatformMgr__GetName(ctx, base);
 

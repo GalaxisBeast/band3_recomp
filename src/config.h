@@ -26,6 +26,7 @@ struct Config {
     long max_queued_frames = 3;
     bool debug_overlay = true;
     std::string log_level = "info";
+    std::string game_data_root = "assets";
 };
 
 const Config& GetConfig();

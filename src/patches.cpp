@@ -1,5 +1,3 @@
-#include <rex/ppc/context.h>
-#include <rex/ppc/function.h>
 #include <rex/system/kernel_state.h>
 #include <rex/logging.h>
 #include <cstring>
@@ -14,7 +12,8 @@
 static std::set<size_t> g_consumed_args;
 
 void ControllerHook(PPCRegister& r11) {
-    r11.u64 = band3::GetConfig().controller_type;
+    long overrideType = band3::GetConfig().controller_type;
+    if (overrideType != -1) r11.u64 = overrideType;
 }
 
 void UpdateArkHook(PPCRegister& r4) {
@@ -27,7 +26,7 @@ void SongCountHook(PPCRegister& r3) {
 }
 
 //replace calls to 822703D0 (bad) with 822703A8 (good)
-extern "C" PPC_FUNC(App__Run)
+extern "C" REX_FUNC(App__Run)
 {
 	REXLOG_INFO("Patching debugger trap");
 	RunFunc_AppRunWithoutDebugging(ctx, base);
@@ -35,7 +34,7 @@ extern "C" PPC_FUNC(App__Run)
 
 // OptionBool(char* optionName, bool default) - check host cmd line aargs for boolean options
 // these do not needa value, just being on the command line implies they are true
-extern "C" PPC_FUNC(OptionBool)
+extern "C" REX_FUNC(OptionBool)
 {
 	const char* optionName = reinterpret_cast<const char*>(
 		base + static_cast<uint32_t>(ctx.r3.u64));
@@ -57,7 +56,7 @@ extern "C" PPC_FUNC(OptionBool)
 }
 
 // OptionStr(char* option, char* default) - check host cmd line args for string options
-extern "C" PPC_FUNC(OptionStr)
+extern "C" REX_FUNC(OptionStr)
 {
 	const char* option = reinterpret_cast<const char*>(
 		base + static_cast<uint32_t>(ctx.r3.u64));
@@ -87,7 +86,7 @@ extern "C" PPC_FUNC(OptionStr)
 
 // Rnd::PreInit - override vsync from ini
 extern "C" void __imp__Rnd__PreInit(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(Rnd__PreInit)
+extern "C" REX_FUNC(Rnd__PreInit)
 {
 	uint32_t rnd_this = static_cast<uint32_t>(ctx.r3.u64);
 	__imp__Rnd__PreInit(ctx, base);
@@ -103,37 +102,37 @@ extern "C" PPC_FUNC(Rnd__PreInit)
 }
 
 // file checksum patch, just return true always
-extern "C" PPC_FUNC(StreamChecksum__ValidateChecksum)
+extern "C" REX_FUNC(StreamChecksum__ValidateChecksum)
 {
 	ctx.r3.u64 = 1;
 }
 // file checksum patch, just return
-extern "C" PPC_FUNC(PlatformMgr__SetDiskError)
+extern "C" REX_FUNC(PlatformMgr__SetDiskError)
 {
 	return;
 }
 
 // nuke metamusic calls, if enabled
 extern "C" void __imp__MetaMusic__Load(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(MetaMusic__Load)
+extern "C" REX_FUNC(MetaMusic__Load)
 {
     if (band3::GetConfig().disable_metamusic) return;
     __imp__MetaMusic__Load(ctx, base);
 }
 extern "C" void __imp__MetaMusic__Poll(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(MetaMusic__Poll)
+extern "C" REX_FUNC(MetaMusic__Poll)
 {
     if (band3::GetConfig().disable_metamusic) return;
     __imp__MetaMusic__Poll(ctx, base);
 }
 extern "C" void __imp__MetaMusic__Start(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(MetaMusic__Start)
+extern "C" REX_FUNC(MetaMusic__Start)
 {
     if (band3::GetConfig().disable_metamusic) return;
     __imp__MetaMusic__Start(ctx, base);
 }
 extern "C" void __imp__MetaMusic__Loaded(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(MetaMusic__Loaded)
+extern "C" REX_FUNC(MetaMusic__Loaded)
 {
     if (band3::GetConfig().disable_metamusic) {
         ctx.r3.u64 = 1;
@@ -144,7 +143,7 @@ extern "C" PPC_FUNC(MetaMusic__Loaded)
 
 // no more demos!
 extern "C" void __imp__SongMgr__IsDemo(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(SongMgr__IsDemo)
+extern "C" REX_FUNC(SongMgr__IsDemo)
 {
     ctx.r3.u64 = 0;
     return;
@@ -153,7 +152,7 @@ extern "C" PPC_FUNC(SongMgr__IsDemo)
 //Set venue from ini hook, reloads the entire config when setvenue is called, sure
 //also doesnt clear allocations for previous strings. Bad? Maybe!
 extern "C" void __imp__MetaPerformer__SetVenue(PPCContext& ctx, uint8_t* base);
-extern "C" PPC_FUNC(MetaPerformer__SetVenue)
+extern "C" REX_FUNC(MetaPerformer__SetVenue)
 {
     band3::LoadConfig();
     const std::string& forced = band3::GetConfig().forced_venue;
@@ -242,7 +241,7 @@ extern "C" PPC_FUNC(MetaPerformer__SetVenue)
 }
 
 //force this import so dlc can load through its roundabout way
-PPC_EXTERN_IMPORT(__imp__XamContentAggregateCreateEnumerator);
+REX_EXTERN(__imp__XamContentAggregateCreateEnumerator);
 //I'll be the roundabout
 //The words will make you out and out
 //You spend the day your wayyyyy

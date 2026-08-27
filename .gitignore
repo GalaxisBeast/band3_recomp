@@ -76,3 +76,6 @@ Testing/
 
 # nix derivation output
 /result
+
+# User CVAR settings
+band3.toml
